@@ -60,7 +60,6 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:1.0.0
             ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:1.0.1
             ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:latest
 
@@ -78,12 +77,12 @@ jobs:
           PUBLISH_RESULT: ${{ needs.publish.result }}
           EVENT_NAME: ${{ github.event_name }}
           REPOSITORY: ${{ github.repository }}
-          BRANCH: ${{ github.ref_name }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
           COMMIT: ${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "$DISCORD_WEBHOOK" ]; then
-            echo "DISCORD_WEBHOOK secret is missing."
+            echo "::error::DISCORD_WEBHOOK secret is missing or empty."
             exit 1
           fi
 
@@ -102,6 +101,7 @@ jobs:
           python - <<'PY'
           import json
           import os
+          import urllib.error
           import urllib.request
 
           status = os.environ["STATUS"]
@@ -130,6 +130,20 @@ jobs:
               method="POST",
           )
 
-          with urllib.request.urlopen(request, timeout=15) as response:
-              print("Discord notification sent. HTTP status:", response.status)
+          try:
+              with urllib.request.urlopen(request, timeout=15) as response:
+                  print(
+                      "Discord notification sent. HTTP status:",
+                      response.status,
+                  )
+          except urllib.error.HTTPError as error:
+              print("Discord HTTP status:", error.code)
+              print(
+                  "Discord error response:",
+                  error.read().decode("utf-8", errors="replace"),
+              )
+              raise
+          except urllib.error.URLError as error:
+              print("Could not connect to Discord:", error.reason)
+              raise
           PY
