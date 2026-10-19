@@ -63,3 +63,73 @@ jobs:
             ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:1.0.0
             ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:1.0.1
             ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:latest
+
+  notify:
+    name: Discord Notification
+    runs-on: ubuntu-latest
+    needs: [test, publish]
+    if: ${{ always() }}
+
+    steps:
+      - name: Send workflow result to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          TEST_RESULT: ${{ needs.test.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "DISCORD_WEBHOOK secret is missing."
+            exit 1
+          fi
+
+          if [ "$TEST_RESULT" != "success" ]; then
+            STATUS="FAILED"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            STATUS="TESTS PASSED - DOCKER PUBLISH SKIPPED"
+          elif [ "$PUBLISH_RESULT" = "success" ]; then
+            STATUS="SUCCESS"
+          else
+            STATUS="FAILED"
+          fi
+
+          export STATUS
+
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          status = os.environ["STATUS"]
+          webhook = os.environ["DISCORD_WEBHOOK"]
+
+          message = {
+              "username": "Flask DevOps Pipeline",
+              "embeds": [{
+                  "title": f"Pipeline {status}",
+                  "description": (
+                      f"Repository: {os.environ['REPOSITORY']}\n"
+                      f"Branch: {os.environ['BRANCH']}\n"
+                      f"Event: {os.environ['EVENT_NAME']}\n"
+                      f"Tests: {os.environ['TEST_RESULT']}\n"
+                      f"Docker publishing: {os.environ['PUBLISH_RESULT']}\n"
+                      f"Commit: {os.environ['COMMIT'][:7]}\n"
+                      f"[View workflow run]({os.environ['RUN_URL']})"
+                  )
+              }]
+          }
+
+          request = urllib.request.Request(
+              webhook,
+              data=json.dumps(message).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST",
+          )
+
+          with urllib.request.urlopen(request, timeout=15) as response:
+              print("Discord notification sent. HTTP status:", response.status)
+          PY
