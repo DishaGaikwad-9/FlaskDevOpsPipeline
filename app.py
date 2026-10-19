@@ -17,7 +17,6 @@ def home():
     )
 
 
-
 @app.route("/health")
 def health():
     if os.getenv("SIMULATE_UNHEALTHY") == "true":
@@ -30,7 +29,6 @@ def health():
         status="healthy",
         version=APP_VERSION,
     )
-
 
 
 @app.route("/api/message")
