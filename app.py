@@ -17,12 +17,20 @@ def home():
     )
 
 
+
 @app.route("/health")
 def health():
+    if os.getenv("SIMULATE_UNHEALTHY") == "true":
+        return jsonify(
+            status="unhealthy",
+            version=APP_VERSION,
+        ), 503
+
     return jsonify(
         status="healthy",
         version=APP_VERSION,
     )
+
 
 
 @app.route("/api/message")

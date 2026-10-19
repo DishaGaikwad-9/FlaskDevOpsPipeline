@@ -61,4 +61,5 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:1.0.0
+            ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:1.0.1
             ${{ secrets.DOCKERHUB_USERNAME }}/flask-devops-api:latest
